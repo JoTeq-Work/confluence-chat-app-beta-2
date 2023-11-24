@@ -14,9 +14,9 @@ openai_key = os.environ["OPENAI_API_KEY"]
 
 
 # Confluence REST API Utilities
-CONFLUENCE_SITE = "https://joteqwork.atlassian.net"
-API_TOKEN = "ATATT3xFfGF0V8Q_NZyy-pish4RnWjg8FylqTnxYMhDp2YWJn4Bbyh6S_w1R-7iFm2w8-uQCSs_8lzBot2EvT_bZ8JlYX7FxfLzHoM__BWLCx3z_RpEv9sK0vK22YzpA9zykgewsBRzluf9aI_57mfLRUQO58aEqgY62xXUG3NHvizxvDEaeJmA=4E7B8FF5"
-AUTH = HTTPBasicAuth("joteqwork@gmail.com", API_TOKEN)
+CONFLUENCE_SITE = "https://<your_site>.atlassian.net"
+API_TOKEN = "<ATLASSIAN_API_TOKEN>"
+AUTH = HTTPBasicAuth("<confluence_email>", API_TOKEN)
 
 
 r = sr.Recognizer()
