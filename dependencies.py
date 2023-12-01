@@ -116,10 +116,10 @@ def call_create_space_api(space_name):
         
         
     results = {
-            "space_id": response.json()['id'],
-            "space_key": response.json()['key'],
-            "space_name": response.json()['name'],
-            "space_link": response.json()['_links']['base'] + response.json()['_links']['webui']
+            "space_id": response.json()["id"],
+            "space_key": response.json()["key"],
+            "space_name": response.json()["name"],
+            "space_html_link": f'<a href="{response.json()["_links"]["base"] + response.json()["_links"]["webui"]}" target="_blank">{response.json()["name"]}<a/>'
             }        
 
     return results
@@ -156,9 +156,9 @@ def call_create_page_api(title, content, space_id):
         # print(f"Respnse content: {response.content}")
         
     results = {
-        "page_id": response.json()['id'],
-        "page_title": response.json()['title'],
-        "page_link": CONFLUENCE_SITE + "/wiki" + response.json()['_links']['webui'],
+        "page_id": response.json()["id"],
+        "page_title": response.json()["title"],
+        "page_html_link": f'<a href="{CONFLUENCE_SITE}/wiki{response.json()["_links"]["webui"]}" target="_blank">{response.json()["title"]}</a>',
         "space_id": response.json()['spaceId']
     }
 
@@ -234,13 +234,14 @@ def call_confluence_rest_api_function(messages, full_message):
             parsed_output = json.loads(
                 full_message["message"]["function_call"]["arguments"]
             )
+            print(parsed_output)
             logger.info("call_confluence_rest_api_function parsed out:", parsed_output)
             space_results = call_create_space_api(parsed_output["space_name"])
             print(space_results)
             # logger.info("Create space results:", results)
             # print("Create space json info:", results.json())
             id = space_results['space_id']
-            # logger.info("id", id)
+            logger.info("id", id)
             space.set_spade_id(id)
             space_id = space.get_space_id()
             # logger.info("space id", space_id)   
