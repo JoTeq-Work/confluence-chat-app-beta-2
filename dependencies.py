@@ -81,14 +81,16 @@ def call_create_space_api(space_name):
         "Content-Type": "application/json"
         }
 
-    name_len = len(space_name)
-    if name_len <= 3:
-        space_key = space_name
-    else:
-        space_key = f"{space_name[0]}{space_name[-2:]}"
+    # name_len = len(space_name)
+    # if name_len <= 3:
+    #     space_key = space_name
+    # else:
+    #     space_key = f"{space_name[0]}{space_name[-2:]}"
+    
+    # space_key = space_name
 
     payload = json.dumps({
-        "key": space_key.lower(),
+        "key": space_name,
         "name": space_name,
         "description": {
             "plain": {
@@ -111,8 +113,16 @@ def call_create_space_api(space_name):
         logger.error("Error with calling Confluence Create Space API: %s", e)
         # print(f"Confluence Create Page API request failed with status code {response.status_code}")
         # print(f"Response content: {response.content}")
+        
+        
+    results = {
+            "space_id": response.json()['id'],
+            "space_key": response.json()['key'],
+            "space_name": response.json()['name'],
+            "space_link": response.json()['_links']['base'] + response.json()['_links']['webui']
+            }        
 
-    return response
+    return results
 
 
 def call_create_page_api(title, content, space_id):
@@ -144,8 +154,15 @@ def call_create_page_api(title, content, space_id):
         logger.error("Error with calling Confluence Create Page API: %s", e)
         # print(f"Confluence Create Page API request failed with status code {response.status_code}")
         # print(f"Respnse content: {response.content}")
+        
+    results = {
+        "page_id": response.json()['id'],
+        "page_title": response.json()['title'],
+        "page_link": CONFLUENCE_SITE + "/wiki" + response.json()['_links']['webui'],
+        "space_id": response.json()['spaceId']
+    }
 
-    return response
+    return results
 
 
 @retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
@@ -210,6 +227,7 @@ def call_confluence_rest_api_function(messages, full_message):
     Function calling function which executes function calls when the model believes it is necessary.
     Currently extended by adding clauses to this if statement.
     """
+    global space
 
     if full_message["message"]["function_call"]["name"] == "call_create_space_api":
         try:
@@ -217,12 +235,22 @@ def call_confluence_rest_api_function(messages, full_message):
                 full_message["message"]["function_call"]["arguments"]
             )
             logger.info("call_confluence_rest_api_function parsed out:", parsed_output)
-            results = call_create_space_api(parsed_output["space_name"])
-            id = results.json()['id']
-            logger.info("id", id)
+            space_results = call_create_space_api(parsed_output["space_name"])
+            print(space_results)
+            # logger.info("Create space results:", results)
+            # print("Create space json info:", results.json())
+            id = space_results['space_id']
+            # logger.info("id", id)
             space.set_spade_id(id)
             space_id = space.get_space_id()
-            logger.info("space id", space_id)           
+            # logger.info("space id", space_id)   
+            # res = {
+            #     "space_id": results.json()['id'],
+            #     "space_key": results.json()['key'],
+            #     "space_name": results.json()['name'],
+            #     "space_link": f"{CONFLUENCE_SITE}/wiki/spaces/{results.json()['key']}"
+            # }        
+            # print(res["space_link"], f"{results.json()['_links']['base']}{results.json()['_links']['webui']}")
             
         except Exception as e:
             logger.error("Space error. Unable to generate ChatCompletion response: %s", e)
@@ -232,7 +260,7 @@ def call_confluence_rest_api_function(messages, full_message):
             {
                 "role": "function",
                 "name": full_message["message"]["function_call"]["name"],
-                "content": str(results),
+                "content": str(space_results),
             }
         )
         try:
@@ -248,10 +276,14 @@ def call_confluence_rest_api_function(messages, full_message):
             )
             logger.info("parsed_output:", parsed_output)
             space_id = space.get_space_id()
+            
             logger.info(space_id)
-            results = call_create_page_api(parsed_output["title"], parsed_output["content"], space_id)
+            page_results = call_create_page_api(parsed_output["title"], parsed_output["content"], space_id)
+            print("Page Results", page_results)
+            page_id = page_results['page_id']
+            print("Page id", page_id)
         except Exception as e:
-            logger.error("Page error. Unable to generate ChatCompletion response: %s", e)
+            logger.error("Page error. Unable to generate ChatCompletion response: %s", space_id, e)
             # print("page error")
             # return f"Unable to generate ChatCompletion response. Exception: {e}"
             
@@ -259,7 +291,7 @@ def call_confluence_rest_api_function(messages, full_message):
             {
                 "role": "function",
                 "name": full_message["message"]["function_call"]["name"],
-                "content": str(results),
+                "content": str(page_results),
             }
         )
         try:

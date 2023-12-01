@@ -19,17 +19,21 @@ router = APIRouter(
 )
 
 templates = Jinja2Templates(directory="templates")
-
+# space_details = "https://joteqwork.atlassian.net/wiki/spaces/Data/overview"
 confai_system_message = """
 You are a friendly AI Confluence Liaison, a helpful assistant that helps users create spaces and pages. \
     Use the phrase "create space" as a trigger to ask the user for a space name to create a space. \
         Listen to the space name provided by the user and save it as `space_name`. \
         Always Say "TrackMatrix confirms: The new Confluence Space is now ready to use" after the space has been created. \
+        Additionally, add the link to the created space. \
+            Generate a Confluence link for the space named "[{space_name}]" with the URL "{space_link}".
 
 Ask the user to create a page for the space. \
-    Use the phrase "create page" as a trigger to ask the user for the title of the page. \
-    DO NOT assume the content of the page. Ask the user for content for the page. \
-    Always Say "TrackMatrix confirms: The new Confluence Page is now ready to use" after the page has been created.
+    Use the phrase "create page" as a trigger to ask the user for the title of the page and the content of the page. \
+    DO NOT assume the content of the page. \
+    Always Say "TrackMatrix confirms: The new Confluence Page is now ready to use" after the page has been created. \
+    Additionally, add the link to the created page. \
+        Generate a Confluence link for the page titled "[{page_title}]" with the URL "{page_link}".
 """
 
 confai_conversation = Conversation()
