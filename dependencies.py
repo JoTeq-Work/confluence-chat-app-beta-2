@@ -5,6 +5,7 @@ import requests
 from pathlib import Path
 from openai import OpenAI
 from pydub.playback import play
+from utils import get_spaces_details, save_to_json_file, read_from_json_file, get_space_id
 import speech_recognition as sr
 from playsound import playsound
 from requests.auth import HTTPBasicAuth
@@ -122,15 +123,43 @@ def call_create_space_api(space_name):
             "space_html_link": f'<a href="{response.json()["_links"]["base"] + response.json()["_links"]["webui"]}" target="_blank">{response.json()["name"]}<a/>'
             }        
 
-    return results
+    return json.dumps(results)
 
 
-def call_create_page_api(title, content, space_id):
+def call_get_spaces_api():
+    url = f"{CONFLUENCE_SITE}/wiki/api/v2/spaces"
+    headers = {
+        "Accept": "application/json"
+    }
+    
+    try:
+        response = requests.request(
+            "GET",
+            url,
+            headers=headers,
+            auth=AUTH
+        )
+    except Exception as e:
+        logger.error("Error with calling Confluence Create Space API: %s", e)
+        
+    spaces_res = response.json()['results']
+    
+    spaces_in_confluence = get_spaces_details(spaces_res)
+    
+    save_to_json_file(spaces_in_confluence, "spaces_in_confluence")
+        
+    return json.dumps(spaces_in_confluence)
+
+
+def call_create_page_api(space_name, title, content):
     url = f"{CONFLUENCE_SITE}/wiki/api/v2/pages"
     headers = {
       "Accept": "application/json",
       "Content-Type": "application/json"
     }
+    
+    spaces_in_confluence = read_from_json_file("spaces_in_confluence")
+    space_id = get_space_id(spaces_in_confluence, space_name)
     
     payload = json.dumps({
         "spaceId": space_id,
@@ -162,8 +191,9 @@ def call_create_page_api(title, content, space_id):
         "space_id": response.json()['spaceId']
     }
 
-    return results
+    return json.dumps(results)
 
+    
 
 @retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def chat_completion_request(messages, functions=None, model=GPT_MODEL):
@@ -216,9 +246,9 @@ class Space:
     def get_space_id(self):
         return self.space[0]
     
-    def set_spade_id(self, space_id):
+    def set_space_id(self, space_id):
         self.space.clear()
-        self.space.append(space_id)        
+        self.space.append(space_id)     
     
     
 space = Space()
@@ -242,7 +272,7 @@ def call_confluence_rest_api_function(messages, full_message):
             # print("Create space json info:", results.json())
             id = space_results['space_id']
             logger.info("id", id)
-            space.set_spade_id(id)
+            space.set_space_id(id)
             space_id = space.get_space_id()
             # logger.info("space id", space_id)   
             # res = {
@@ -261,7 +291,7 @@ def call_confluence_rest_api_function(messages, full_message):
             {
                 "role": "function",
                 "name": full_message["message"]["function_call"]["name"],
-                "content": str(space_results),
+                "content": space_results,
             }
         )
         try:
@@ -270,21 +300,51 @@ def call_confluence_rest_api_function(messages, full_message):
         except Exception as e:
             logger.error("Function chat request failed: %s", e)
             # raise Exception("Function chat request failed")
+            
+    elif full_message["message"]["function_call"]["name"] == "call_get_spaces_api":
+        try:
+            spaces_in_confluence = call_get_spaces_api()
+            logger.info("Spaces in Confleunce", spaces_in_confluence) 
+        except Exception as e:
+            logger.error(
+                "Getting Spaces Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Unable to generate ChatCompletion response: %s", e
+                )
+        
+        messages.append(
+            {
+                "role": "function",
+                "name": full_message["message"]["function_call"]["name"],
+                "content": spaces_in_confluence,
+            }
+        )        
+        try:
+            response = chat_completion_request(messages)
+            return response.json()
+        except Exception as e:
+            logger.error(
+                "Getting Spaces Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Function chat request failed: %s", e
+                )
+            
     elif full_message["message"]["function_call"]["name"] == "call_create_page_api":    
         try:
             parsed_output = json.loads(
             full_message["message"]["function_call"]["arguments"]
             )
-            logger.info("parsed_output:", parsed_output)
-            space_id = space.get_space_id()
+            # logger.info("parsed_output:", parsed_output)
+            # space_id = space.get_space_id()
             
-            logger.info(space_id)
-            page_results = call_create_page_api(parsed_output["title"], parsed_output["content"], space_id)
+            # logger.info(space_id)
+            
+            page_results = call_create_page_api(parsed_output["space_name"], parsed_output["title"], parsed_output["content"])
             print("Page Results", page_results)
             page_id = page_results['page_id']
             print("Page id", page_id)
         except Exception as e:
-            logger.error("Page error. Unable to generate ChatCompletion response: %s", space_id, e)
+            logger.error("Page error. Unable to generate ChatCompletion response: %s", e)
             # print("page error")
             # return f"Unable to generate ChatCompletion response. Exception: {e}"
             
@@ -292,7 +352,7 @@ def call_confluence_rest_api_function(messages, full_message):
             {
                 "role": "function",
                 "name": full_message["message"]["function_call"]["name"],
-                "content": str(page_results),
+                "content": page_results,
             }
         )
         try:
@@ -301,6 +361,7 @@ def call_confluence_rest_api_function(messages, full_message):
         except Exception as e:
             logger.error("Function chat request failed: %s", e)
             # raise Exception("Function chat request failed")
+            
     else:
         logger.warning("Function does not exist and cannot be called: %s", e)
         # raise Exception("Function does not exist and cannot be called")

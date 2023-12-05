@@ -33,9 +33,12 @@ confai_system_message = "\
     After creating the space, provide the confirmation message with the HTML anchor tag:\
     USE THE <a> {space_html_link} </a> \
     \
-Ask the user to create a page for the space. \
-    Use the phrase 'create page' as a trigger to ask the user for the title of the page and the content of the page. \
+    Use the phrase 'create page' as a trigger to create a confluence page for the user. \
+    Let the user know the spaces in Confluence by providing a list of the {spaces} USING ONLY {space_name} and ask the user what space to create the page in. \
+    Ask the user if you are not sure of what space the user is asking to create the page in. \
+    Ask the user for the title of the page and the content of the page. \
     DO NOT assume the content of the page. \
+    \
     Always Say 'TrackMatrix confirms: The new Confluence Page is now ready to use' after the page has been created. \
     DO NOT REMOVE THE HTML ANCHOR TAGS. INCLUDE THE HTML ANCHOR TAGS IN THE OUTPUT\
     After creating the page, provide the confirmation message with the HTML anchor tag:\
