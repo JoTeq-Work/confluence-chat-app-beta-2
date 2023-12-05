@@ -16,7 +16,7 @@ from tenacity import retry, wait_random_exponential, stop_after_attempt
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-GPT_MODEL = "gpt-3.5-turbo-0613"
+GPT_MODEL = "gpt-4-1106-preview" # "gpt-4-1106-preview"
 
 _ = load_dotenv(find_dotenv()) # read local .env
 
@@ -121,7 +121,8 @@ def call_create_space_api(space_name):
             "space_key": response.json()["key"],
             "space_name": response.json()["name"],
             "space_html_link": f'<a href="{response.json()["_links"]["base"] + response.json()["_links"]["webui"]}" target="_blank">{response.json()["name"]}<a/>'
-            }        
+            }     
+    save_to_json_file(results, "created_space")   
 
     return json.dumps(results)
 
@@ -190,6 +191,8 @@ def call_create_page_api(space_name, title, content):
         "page_html_link": f'<a href="{CONFLUENCE_SITE}/wiki{response.json()["_links"]["webui"]}" target="_blank">{response.json()["title"]}</a>',
         "space_id": response.json()['spaceId']
     }
+    
+    save_to_json_file(results, "created_page")
 
     return json.dumps(results)
 
@@ -267,13 +270,15 @@ def call_confluence_rest_api_function(messages, full_message):
             print(parsed_output)
             logger.info("call_confluence_rest_api_function parsed out:", parsed_output)
             space_results = call_create_space_api(parsed_output["space_name"])
-            print(space_results)
+            print("Space Results", space_results)
             # logger.info("Create space results:", results)
             # print("Create space json info:", results.json())
-            id = space_results['space_id']
-            logger.info("id", id)
-            space.set_space_id(id)
-            space_id = space.get_space_id()
+            # id = space_results['space_id']
+            # logger.info("id", id)
+            created_space = read_from_json_file("created_space")
+            logger.info("Created space:", created_space)
+            # space.set_space_id(id)
+            # space_id = space.get_space_id()
             # logger.info("space id", space_id)   
             # res = {
             #     "space_id": results.json()['id'],
@@ -343,6 +348,8 @@ def call_confluence_rest_api_function(messages, full_message):
             print("Page Results", page_results)
             page_id = page_results['page_id']
             print("Page id", page_id)
+            created_page = read_from_json_file("created_page")
+            logger.info("Created Page:", created_page)
         except Exception as e:
             logger.error("Page error. Unable to generate ChatCompletion response: %s", e)
             # print("page error")

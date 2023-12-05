@@ -38,3 +38,7 @@ def get_space_id(json_object: dict, requested_space: str):
         if res['space_name'] == requested_space:
             space_id = res['space_id']
             return space_id
+        
+
+if __name__ == "__main__":
+    print()

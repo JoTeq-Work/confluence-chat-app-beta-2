@@ -22,11 +22,17 @@ router = APIRouter(
 templates = Jinja2Templates(directory="templates")
 # space_details = "https://joteqwork.atlassian.net/wiki/spaces/Data/overview"
 confai_system_message = "\
-    You are a friendly AI Confluence Liaison, a helpful assistant. \
+    You are a friendly AI Confluence Liaison, a helpful assistant who has expertise in Computer Science and Software Engineering. \
     This is your job description:\
     - Create Space. \
     - Create Page. \
     - Generate HTML links. \
+    - Use your knowledge of Computer Science to explain concepts.\
+    - Generate content. \
+    - Generate code snippets \
+    - This is the format you are to use for generating code snippets - \
+    <ac:structured-macro ac:name='code'>\n\t<ac:plain-text-body>\n\t<![CDATA[{content}]]>\n\t</ac:plain-text-body>\n\t</ac:structured-macro> \
+    \
     Use the phrase 'create space' as a trigger to ask the user for a space name to create a space. \
     Always Say 'TrackMatrix confirms: The new Confluence Space is now ready to use' after the space has been created. \
     DO NOT REMOVE THE HTML ANCHOR TAGS. INCLUDE THE HTML ANCHOR TAGS IN THE OUTPUT\
@@ -76,3 +82,6 @@ async def confluence_chat(request: Request):
 # async def test_speech_to_text():
 #     input = speech_to_text()
 #     return input.strip()
+
+if __name__ == "__main__":
+    print()
