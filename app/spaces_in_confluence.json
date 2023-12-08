@@ -1,0 +1,54 @@
+[
+    {
+        "space_id": "3901751",
+        "space_key": "football",
+        "space_name": "football"
+    },
+    {
+        "space_id": "4227076",
+        "space_key": "testone",
+        "space_name": "testone"
+    },
+    {
+        "space_id": "4259855",
+        "space_key": "testtwo",
+        "space_name": "testtwo"
+    },
+    {
+        "space_id": "4423768",
+        "space_key": "Software",
+        "space_name": "Software"
+    },
+    {
+        "space_id": "4784130",
+        "space_key": "Book",
+        "space_name": "Book"
+    },
+    {
+        "space_id": "4882434",
+        "space_key": "Jew",
+        "space_name": "Jew"
+    },
+    {
+        "space_id": "5537795",
+        "space_key": "~557058c24b890dba97464db704e4510a52f50f",
+        "space_name": "virendra_vaishnav"
+    },
+    {
+        "space_id": "5603355",
+        "space_key": "HOML",
+        "space_name": "Hands On Machine Learning"
+    },
+    {
+        "spaces": [
+            "football",
+            "testone",
+            "testtwo",
+            "Software",
+            "Book",
+            "Jew",
+            "virendra_vaishnav",
+            "Hands On Machine Learning"
+        ]
+    }
+]
