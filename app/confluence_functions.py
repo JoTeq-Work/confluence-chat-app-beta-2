@@ -48,5 +48,35 @@ confluence_functions = [
             }
         },
         "required": ["space_name", "title", "content"]
-    }
+    },
+    {
+        "name": "update_confluence_vector_database",
+        "description": "Use this function to create a vector database of spaces in Confluence",
+        "parameters": {
+            "type": "object",
+            "properties": {}
+        },
+    },
+    {
+        "name": "retrieve_answer_from_confluence_knowledge_base",
+        "description": "Use this function to retrieve answers to user's query from the Confluence knowledge base",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "User query in string. Responses should be information from the confluence knowledge base." ,
+                }
+            }
+        },
+        "required": ["query"]
+    },
+    {
+        "name": "ask_recent_updates",
+        "description": "Use this function to get information about the current_version of confluence spaces",
+        "parameters": {
+            "type": "object",
+            "properties": {}
+        },
+    },
 ]

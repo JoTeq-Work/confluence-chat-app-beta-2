@@ -6,7 +6,7 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.document_loaders import JSONLoader
 
 from app.dependencies import CONFLUENCE_SITE, API_TOKEN, call_get_spaces_api
-from app.utils import read_from_json_file
+from app.utils import save_to_json_file, read_from_json_file
 import json
 
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
@@ -28,7 +28,11 @@ def get_docs(documents):
 
 def store_documents(documents):
     embeddings = OpenAIEmbeddings()
-    # os.system("rm -rf chroma_docs/chroma/")
+    
+    print("Deleting existing vector db")
+    shutil.rmtree("chroma_docs", ignore_errors=True)
+    print("Deleted existing db, now creating new db")
+    
     Chroma.from_documents(
         documents=documents,
         embedding=embeddings,
@@ -44,9 +48,7 @@ def load_json_data():
     print("Loading JSON")
     data = loader.load()
     
-    print("Deleting existing vector db")
-    shutil.rmtree("chroma_docs", ignore_errors=True)
-    print("Deleted existing db, now creating new db")
+    
     
     print("Storing documents in vectordb")
     store_documents(data)
@@ -92,6 +94,7 @@ def load_spaces_docs():
     
     print("Done\n")
     print("Total number of docs:", num_docs)
+    save_to_json_file("confluence_data")
 
 def qa(query):
     vectordb = Chroma(

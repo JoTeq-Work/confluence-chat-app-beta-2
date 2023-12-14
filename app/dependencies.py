@@ -1,14 +1,31 @@
 import os
+import time
 import json
+import shutil
 import logging
 import requests
-from pathlib import Path
+
 from openai import OpenAI
-from app.utils import get_spaces_details, save_to_json_file, read_from_json_file, get_space_id
+
 import speech_recognition as sr
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv, find_dotenv
 from tenacity import retry, wait_random_exponential, stop_after_attempt
+
+from app.utils import (
+    get_spaces_details, 
+    save_to_json_file, 
+    read_from_json_file, 
+    get_space_id,
+    get_docs,
+    store_documents,
+    Chroma,
+    PERSIST_DIRECTORY,
+    OpenAIEmbeddings,
+    retrieve_recent_updates
+    )
+
+from langchain.document_loaders import ConfluenceLoader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,37 +50,44 @@ API_TOKEN = ATLASSIAN_API_TOKEN
 AUTH = HTTPBasicAuth("joteqwork@gmail.com", API_TOKEN)
 
 
-def speech_to_text():   
-    r = sr.Recognizer() 
-    with sr.Microphone() as source:
-        logger.info("Say something...")
-        audio = r.listen(source)
+# def speech_to_text():   
+#     r = sr.Recognizer() 
+#     with sr.Microphone() as source:
+#         logger.info("Say something...")
+#         audio = r.listen(source)
         
-    try:
-        text = r.recognize_whisper(audio, language="english")
-        logger.info(f"Recognized speech: {text}")
-        return text
-    except sr.UnknownValueError:
-        logger.warning("Speech recognition could not understand audio")
-        return None
-    except sr.RequestError as e:
-        logger.error("Could not request results from speech recognition API: %s", e)
-        return None
+#     try:
+#         text = r.recognize_whisper(audio, language="english")
+#         logger.info(f"Recognized speech: {text}")
+#         return text
+#     except sr.UnknownValueError:
+#         logger.warning("Speech recognition could not understand audio")
+#         return None
+#     except sr.RequestError as e:
+#         logger.error("Could not request results from speech recognition API: %s", e)
+#         return None
     
 
 def text_to_speech(text):
     if not text:
         return
+    speech_file_path = "app/static/chat_app/files/audio/assistant_message_output.mp3"
+    # Delete existing speech
+    try:
+        print("Deleting exisiting AI speech")
+        os.remove(speech_file_path)
+    except Exception as e:
+        print("Audio file does not exist")
     
-    speech_file_path = "app/static/chat_app/files/ai_speech.mp3"
     try:
         response = client.audio.speech.create(
         model="tts-1",
         voice="shimmer",
         input=text
         )
+        print("Generating new AI Speech")
         response.stream_to_file(speech_file_path)
-       
+        print("Generated new AI Speech")
     except Exception as e:
         logger.error("Error generating speech: %s", e)
 
@@ -180,7 +204,99 @@ def call_create_page_api(space_name, title, content):
 
     return json.dumps(results)
 
+def update_confluence_vector_database():
+    start_time = time.perf_counter()
+    loader = ConfluenceLoader(
+        url=CONFLUENCE_SITE,
+        username="joteqwork@gmail.com",
+        api_key=API_TOKEN
+    )
     
+    print("Get Confluence spaces")
+    call_get_spaces_api()
+    print("Reading Confluence spaces")
+    spaces = read_from_json_file("spaces_in_confluence")[:-1]
+    
+    print("Deleting existing vector db")
+    shutil.rmtree("app/chroma_docs", ignore_errors=True)
+    print("Deleted existing db, now creating new db")
+    
+    # num_docs = 0
+    i = 1
+    # confluence_documents = {}
+    for space in spaces:
+        print("Loading spaces from space", i)
+        space_docs = loader.load(
+        space_key=space['space_key'],
+        # include_attachments=True, # PDF, PNG, JPEG/JPG, SVG, Word, Excel
+        limit=50,
+        # max_pages=2
+        )
+        # print("Space Documents:", space_docs, "\n")
+        
+        # confluence_documents[space['space_id']] = {
+        #     'space_key': space['space_key'],
+        #     'space_name': space['space_name'],
+        #     'space_documents':  str(space_docs) # 
+        # }
+        # print("Space Documents:", confluence_documents, "\n")
+        # print("Getting docs")
+        docs = get_docs(space_docs)
+        # print("Number of docs for", space['space_key'], ":", len(docs))
+        # num_docs += len(docs)
+        # print("Docs:", docs)
+        
+        print("Storing documents in vectordb")
+        store_documents(docs)
+        print("Stored documents of space", i)
+        i+=1
+    
+    print("Stored all documents in vectordb\n")
+    
+    
+    print("Retrieving Recent Updates")
+    retrieve_recent_updates(CONFLUENCE_SITE, AUTH)
+    print("Recent Updates Retrieved")
+    
+    
+    
+    end_time = time.perf_counter()
+    
+    elasped_time = end_time - start_time
+    print("Elasped_time to update the knowledge base:", elasped_time)
+    
+   
+#----------------------------------------------------------------------------------------------------------------------------------
+
+def ask_recent_updates():
+    confluence_data = read_from_json_file("confluence_recent_updates")
+    return {"confluence_data": confluence_data}
+
+def retrieve_answer_from_confluence_knowledge_base(query):
+    vectordb = Chroma(
+        persist_directory=PERSIST_DIRECTORY,
+        embedding_function=OpenAIEmbeddings()
+    )
+    
+    top_k_answers = vectordb.similarity_search(query, k=3)
+    
+    retrieved_answers = [top_k_answer.page_content for top_k_answer in top_k_answers]
+    # response = client.chat.completions.create(
+    #     model=GPT_MODEL,
+    #     messages=[
+    #         {
+    #             "role": "user", 
+    #             "content": f"Use the following pieces of context to answer the user's question about Confluence spaces. \
+    #                 If you don't know the answer, just say you don't know, don't try to make up an answer. \
+    #                 Keep the answer as concise as possible. \
+    #                 User query: {query} \
+    #                 Retrieved answers from knowledge base: {top_k_answers}"
+    #         }
+    #     ]        
+    # )
+    # retrieved_answer = response.choices[0].message.content
+    
+    return {"retrieved_answers": retrieved_answers}
 
 @retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def chat_completion_request(messages, functions=None, model=GPT_MODEL):
@@ -240,7 +356,7 @@ def call_confluence_rest_api_function(messages, full_message):
             print(parsed_output)
             logger.info("call_confluence_rest_api_function parsed out:", parsed_output)
             space_results = call_create_space_api(parsed_output["space_name"])
-            print("Space Results", space_results)
+            # print("Space Results", space_results)
             created_space = read_from_json_file("created_space")
             logger.info("Created space:", created_space)
             
@@ -276,7 +392,7 @@ def call_confluence_rest_api_function(messages, full_message):
             {
                 "role": "function",
                 "name": full_message["message"]["function_call"]["name"],
-                "content": spaces_in_confluence,
+                "content": str(spaces_in_confluence),
             }
         )        
         try:
@@ -316,6 +432,99 @@ def call_confluence_rest_api_function(messages, full_message):
             return response.json()
         except Exception as e:
             logger.error("Function chat request failed: %s", e)
+    
+    elif full_message["message"]["function_call"]["name"] == "update_confluence_vector_database":
+        try:
+            update_confluence_vector_database()
+            confluence_documents = read_from_json_file("confluence_recent_updates")
+            logger.info("Confluence Documents", confluence_documents)  
+        except:
+            logger.error(
+                "Updating Confluence Vector Database Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Unable to generate ChatCompletion response: %s", e
+                )
+        messages.append(
+            {
+                "role": "function",
+                "name": full_message["message"]["function_call"]["name"],
+                "content": str(confluence_documents),
+            }
+        )        
+        try:
+            response = chat_completion_request(messages)
+            return response.json()
+        except Exception as e:
+            logger.error(
+                "Updating Confluence Vector Database Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Function chat request failed: %s", e
+                )
+    elif full_message["message"]["function_call"]["name"] == "retrieve_answer_from_confluence_knowledge_base":
+        try:
+            parsed_output = json.loads(
+            full_message["message"]["function_call"]["arguments"]
+            )
+            
+            retrieved_answers = retrieve_answer_from_confluence_knowledge_base(parsed_output["query"])
+            print("Retrieved answer:", retrieved_answers)
+        except Exception as e:
+            logger.error(
+                "Retrieving answer from Confluence Knowledge Base Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Unable to generate ChatCompletion response: %s", e
+                )
+        messages.append(
+            {
+                "role": "function",
+                "name": full_message["message"]["function_call"]["name"],
+                "content": str(retrieved_answers),
+            }
+        )
+        try:
+            response = chat_completion_request(messages)
+            return response.json()
+        except Exception as e:
+            logger.error(
+                "Retrieve Answer from Confluence Knowledge Base Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Function chat request failed: %s", e
+                )
+    elif full_message["message"]["function_call"]["name"] == "ask_recent_updates":
+        start_time = time.perf_counter()
+        try:
+            parsed_output = json.loads(
+            full_message["message"]["function_call"]["arguments"]
+            )
+            
+            recent_updates = ask_recent_updates()
+            # print("Recent Updates:", recent_updates)
+        except Exception as e:
+            logger.error(
+                "Ask Recent Updates Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Unable to generate ChatCompletion response: %s", e
+                )
+        messages.append(
+            {
+                "role": "function",
+                "name": full_message["message"]["function_call"]["name"],
+                "content": str(recent_updates),
+            }
+        )
+        try:
+            response = chat_completion_request(messages)
+            end_time = time.perf_counter()
+    
+            elasped_time = end_time - start_time
+            print("Elasped_time to get response for recent updates:", elasped_time)
+            return response.json()
+        except Exception as e:
+            logger.error(
+                "Ask Recent Updates Error!\n",
+                "Function: call_confluence_rest_api_function\n",
+                "Function chat request failed: %s", e
+                )
             
     else:
         logger.warning("Function does not exist and cannot be called: %s", e)

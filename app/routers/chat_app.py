@@ -1,15 +1,16 @@
-import os
+import json
 import logging
-from pathlib import Path
-from typing import Annotated
 from markupsafe import Markup
+
+from app.utils import read_audio_file
 
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi import WebSocket, WebSocketDisconnect
 
 from app.confluence_functions import confluence_functions
-from app.dependencies import Conversation, chat_completion_with_function_execution, speech_to_text, text_to_speech
+from app.dependencies import Conversation, chat_completion_with_function_execution, text_to_speech
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,11 +24,15 @@ router = APIRouter(
 templates = Jinja2Templates(directory="app/templates")
 
 confai_system_message = "\
-    You are a friendly AI Confluence Liaison, a helpful assistant who has expertise in Computer Science and Software Engineering. \
+    You are a friendly AI Confluence Liaison made by TrackMatriX. A helpful assistant who retrieves information from a user's Confluence \
+    and answers questions asked by the user.\
     This is your job description:\
     - Create Space. \
     - Create Page. \
     - Generate HTML links. \
+    - Create or update Knowledge bases of Confluence spaces.\
+    - Retrieve answers to user's query from the Confluence knowledge base.\
+    - Retrieve recent updates from Confluence spaces. \
     - Use your knowledge of Computer Science to explain concepts.\
     - Generate content. \
     - Generate code snippets \
@@ -50,20 +55,31 @@ confai_system_message = "\
     DO NOT REMOVE THE HTML ANCHOR TAGS. INCLUDE THE HTML ANCHOR TAGS IN THE OUTPUT\
     After creating the page, provide the confirmation message with the HTML anchor tag:\
     USE THE <a> {page_html_link} </a>\
+    \
+    Use the phrase 'update knowledge base' as a trigger to create or update a user's Confluence knowledge base. \
+    After updating the knowledge base, provide a confimation message to the user that the Confluence knowledge base has been updated \
+    by TrackMatriX, and the user can now ask questions about the Confluence knowledge base.\
+    \
+    When a user asks a question, use the following pieces of context to answer the user's question about Confluence spaces. \
+    If you don't know the answer, just say you don't know, don't try to make up an answer. \
+    Keep the answer as concise as possible. \
+    Retrieved answers from KNOWLEDGE BASE: {retrieved_answers} \
+    ALWAYS retrieve information to user's query from the KNOWLEDGE BASE unless specified otherwise.\
+    \
+    When a user asks for recent updates, Use the following pieces of context to answer the user's question about Confluence spaces. \
+    Use the knowledge base to let the user know of the recent updates made in the {page_content} of the current versions and the {name} \
+    of the person who made the update. \
+    If you don't know the answer, just say you don't know, don't try to make up an answer. \
+    Keep the answer as concise as possible. \
+    Recent updates from confluence spaces: {recent_updates}. \
 "
 
 confai_conversation = Conversation()
 confai_conversation.add_message("system", confai_system_message)
 
-
-@router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
-
-@router.post("/", response_class=HTMLResponse)
-async def confluence_chat(request: Request):
-    input = speech_to_text()
-    confai_conversation.add_message("user", input.strip())
+def confluence_chat(transcript):
+    print("Starting chat")
+    confai_conversation.add_message("user", transcript.strip())
     chat_response = chat_completion_with_function_execution(
         confai_conversation.conversation_history, functions=confluence_functions
     )
@@ -72,10 +88,33 @@ async def confluence_chat(request: Request):
     assistant_message_html = Markup(assistant_message)
     text_to_speech(assistant_message)
     
-    return templates.TemplateResponse(
-        "chat.html", 
-        {"request": request, "assistant_message": assistant_message_html}
-        )
+    # return templates.TemplateResponse(
+    #     "chat.html", 
+    #     {"request": request, "assistant_message": assistant_message_html}
+    #     )
+    return assistant_message_html
 
-if __name__ == "__main__":
-    print()
+
+
+@router.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        try:
+            transcript = await websocket.receive_text()
+            print("Sent to you:", transcript)
+            print("Getting AI Response")
+            assistant_message_html = confluence_chat(transcript)
+            audio_data = read_audio_file("assistant_message_output")
+            data_to_send = {
+                "assistantMessage": assistant_message_html,
+                "audioData": audio_data
+                }
+            await websocket.send_text(json.dumps(data_to_send))
+        except WebSocketDisconnect:
+            break

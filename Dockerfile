@@ -1,14 +1,6 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-RUN dpkg --add-architecture i386 
-
-RUN apt-get update && apt-get install -y build-essential
-
-RUN apt-get install -y libportaudio2 portaudio19-dev
-
-RUN pip install --no-cache-dir PyAudio==0.2.11
-
 # Set the working directory in the container to /code
 WORKDIR /code 
 
