@@ -78,7 +78,6 @@ confai_conversation = Conversation()
 confai_conversation.add_message("system", confai_system_message)
 
 def confluence_chat(transcript):
-    print("Starting chat")
     confai_conversation.add_message("user", transcript.strip())
     chat_response = chat_completion_with_function_execution(
         confai_conversation.conversation_history, functions=confluence_functions

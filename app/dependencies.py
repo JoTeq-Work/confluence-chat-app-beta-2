@@ -205,7 +205,7 @@ def call_create_page_api(space_name, title, content):
     return json.dumps(results)
 
 def update_confluence_vector_database():
-    start_time = time.perf_counter()
+    # start_time = time.perf_counter()
     loader = ConfluenceLoader(
         url=CONFLUENCE_SITE,
         username="joteqwork@gmail.com",
@@ -260,10 +260,10 @@ def update_confluence_vector_database():
     
     
     
-    end_time = time.perf_counter()
+    # end_time = time.perf_counter()
     
-    elasped_time = end_time - start_time
-    print("Elasped_time to update the knowledge base:", elasped_time)
+    # elasped_time = end_time - start_time
+    # print("Elasped_time to update the knowledge base:", elasped_time)
     
    
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -332,10 +332,10 @@ def chat_completion_with_function_execution(messages, functions=[None]):
     """This function makes a ChatCompletion API call with the option of adding functions"""
     logger.info("Started process")
     response = chat_completion_request(messages, functions)
-    logger.info("First response", response.json()["choices"][0])
+    print("First response", response.json()["choices"][0])
     full_message = response.json()["choices"][0]
     if full_message["finish_reason"] == "function_call":
-        logger.info("Calling function")
+        print("Calling function")
         return call_confluence_rest_api_function(messages, full_message)
     else:
         logger.warning("Function not called")
@@ -380,7 +380,7 @@ def call_confluence_rest_api_function(messages, full_message):
         try:
             call_get_spaces_api()
             spaces_in_confluence = read_from_json_file("spaces_in_confluence")
-            logger.info("Spaces in Confleunce", spaces_in_confluence) 
+            print("Spaces in Confleunce", spaces_in_confluence) 
         except Exception as e:
             logger.error(
                 "Getting Spaces Error!\n",

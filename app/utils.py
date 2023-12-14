@@ -35,7 +35,6 @@ def store_documents(documents):
     
  
  
-    
 def get_spaces_details(spaces_results):    
     spaces = []
     spaces_in_conf = []

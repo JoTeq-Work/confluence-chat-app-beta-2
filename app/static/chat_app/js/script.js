@@ -39,7 +39,7 @@ webSocket.onmessage = async function(e) {
     await playAudio(audioData);
 
     chatBtn.className = "btn btn-success mt-1";
-    chatBtn.innerText = "Click button";
+    chatBtn.innerText = "Click to Speak";
 }
 
 formConnect.addEventListener('submit', (e) => {
@@ -81,6 +81,8 @@ function resetSilenceTimeout() {
     silenceTimeout = setTimeout(() => {
         console.log("No speech detected");
         stopSpeechRecognition();
+        chatBtn.className = "btn btn-success mt-1";
+        chatBtn.innerText = "Click to Speak";
     }, 5000)
 }
 
