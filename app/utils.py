@@ -21,7 +21,8 @@ def get_docs(documents):
     )
     
     docs = text_splitter.split_documents(documents)
-    return docs
+    docs_str = [str(doc) for doc in docs]
+    return docs_str
 
 PERSIST_DIRECTORY = "app/chroma_docs/chroma/"
 def store_documents(documents):

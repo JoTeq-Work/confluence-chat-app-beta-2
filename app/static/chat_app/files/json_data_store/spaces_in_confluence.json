@@ -30,13 +30,31 @@
         "space_name": "policy"
     },
     {
+        "space_id": "6848518",
+        "space_key": "API",
+        "space_name": "API"
+    },
+    {
+        "space_id": "6881282",
+        "space_key": "perceptron",
+        "space_name": "perceptron"
+    },
+    {
+        "space_id": "7077890",
+        "space_key": "Yash",
+        "space_name": "Yash"
+    },
+    {
         "spaces": [
             "testone",
             "testtwo",
             "Software",
             "virendra_vaishnav",
             "Hands On Machine Learning",
-            "policy"
+            "policy",
+            "API",
+            "perceptron",
+            "Yash"
         ]
     }
 ]

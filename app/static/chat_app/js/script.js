@@ -5,7 +5,8 @@ const assistantMessageOutput = document.getElementById('assistantMessageOutput')
 // ------------------------------------------------------ WebSocket Connection -----------------------------------------------------\\
 
 // var ws = new WebSocket("ws://localhost:8000/");
-var webSocket = new WebSocket(`ws://${window.location.host}/chat/ws`); // Dynamic connection
+var webSocket = new WebSocket(`ws://${window.location.host}/chat/ws`); // Local Dynamic connection
+// var webSocket = new WebSocket(`wss://${window.location.host}/chat/ws`); // Online Dynamic connection
 function sendMessage(transcript) { 
     console.log("Received transcribed text, now I will send it"); 
 

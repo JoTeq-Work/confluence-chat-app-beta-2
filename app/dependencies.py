@@ -1,9 +1,13 @@
 import os
 import time
 import json
+import uuid
 import shutil
 import logging
 import requests
+
+import chromadb
+from chromadb.utils import embedding_functions
 
 from openai import OpenAI
 
@@ -11,6 +15,9 @@ import speech_recognition as sr
 from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv, find_dotenv
 from tenacity import retry, wait_random_exponential, stop_after_attempt
+
+import chromadb
+from chromadb.config import Settings
 
 from app.utils import (
     get_spaces_details, 
@@ -38,7 +45,24 @@ load_dotenv("app/.env")
 # Declare API keys
 openai_key = os.environ["OPENAI_API_KEY"]
 ATLASSIAN_API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"]
+HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY"]
 
+HUGGINGFACE_EF = embedding_functions.HuggingFaceEmbeddingFunction(
+    api_key=HUGGING_FACE_API_TOKEN,
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+# chroma_client = chromadb.Client()
+# chroma_client = chromadb.PersistentClient(path="/app/chromadb")
+# chroma_client = chromadb.HttpClient(host='localhost', port=8000)
+
+
+def start_chromadb():
+    global chroma_client
+    chroma_client = chromadb.HttpClient(
+        host='localhost', 
+        port=8000,
+        )
+    return chroma_client
 
 client = OpenAI(
     api_key=openai_key
@@ -48,24 +72,6 @@ client = OpenAI(
 CONFLUENCE_SITE = "https://joteqwork.atlassian.net"
 API_TOKEN = ATLASSIAN_API_TOKEN
 AUTH = HTTPBasicAuth("joteqwork@gmail.com", API_TOKEN)
-
-
-# def speech_to_text():   
-#     r = sr.Recognizer() 
-#     with sr.Microphone() as source:
-#         logger.info("Say something...")
-#         audio = r.listen(source)
-        
-#     try:
-#         text = r.recognize_whisper(audio, language="english")
-#         logger.info(f"Recognized speech: {text}")
-#         return text
-#     except sr.UnknownValueError:
-#         logger.warning("Speech recognition could not understand audio")
-#         return None
-#     except sr.RequestError as e:
-#         logger.error("Could not request results from speech recognition API: %s", e)
-#         return None
     
 
 def text_to_speech(text):
@@ -204,7 +210,7 @@ def call_create_page_api(space_name, title, content):
 
     return json.dumps(results)
 
-def update_confluence_vector_database():
+def update_confluence_vector_database():    
     # start_time = time.perf_counter()
     loader = ConfluenceLoader(
         url=CONFLUENCE_SITE,
@@ -217,15 +223,24 @@ def update_confluence_vector_database():
     print("Reading Confluence spaces")
     spaces = read_from_json_file("spaces_in_confluence")[:-1]
     
-    print("Deleting existing vector db")
-    shutil.rmtree("app/chroma_docs", ignore_errors=True)
-    print("Deleted existing db, now creating new db")
+    # print("Deleting existing vector db")
+    # shutil.rmtree("app/chroma_docs", ignore_errors=True)
+    # print("Deleted existing db, now creating new db")
+    # print("Chroma Client 1", chroma_client)
+    print("Resetting Chromadb")
+    chroma_client.reset()
+    print("Chromadb has been reset")
     
     # num_docs = 0
     i = 1
     # confluence_documents = {}
+    conf_docs = []
+    collection  = chroma_client.create_collection(
+        name="confluence_documents",
+        embedding_function=HUGGINGFACE_EF,
+        )
     for space in spaces:
-        print("Loading spaces from space", i)
+        # print("Loading spaces from space", i)
         space_docs = loader.load(
         space_key=space['space_key'],
         # include_attachments=True, # PDF, PNG, JPEG/JPG, SVG, Word, Excel
@@ -240,23 +255,49 @@ def update_confluence_vector_database():
         #     'space_documents':  str(space_docs) # 
         # }
         # print("Space Documents:", confluence_documents, "\n")
-        # print("Getting docs")
+        
+        print("Getting docs")
         docs = get_docs(space_docs)
+        # print("Creating Documents List")
+        # conf_docs.append(str(docs))
+        
+        docs_ids = [str(uuid.uuid4()) for _ in range(len(docs))]
+        print("Documents IDs:", docs_ids)
+        collection.add(
+            documents=docs,
+            ids=docs_ids
+        )
+        # print(*docs)
+        # print(len(docs), "\n\n")
+        
+        
         # print("Number of docs for", space['space_key'], ":", len(docs))
         # num_docs += len(docs)
         # print("Docs:", docs)
         
-        print("Storing documents in vectordb")
-        store_documents(docs)
-        print("Stored documents of space", i)
-        i+=1
+        # print("Storing documents in vectordb")
+        # store_documents(docs)
+        # print("Stored documents of space", i)
+        # i+=1
+        
+    print("Chromadb Ready!")
     
-    print("Stored all documents in vectordb\n")
+    # docs_ids = [str(uuid.uuid4()) for _ in range(len(conf_docs))]
+    # print("Documents IDs:", docs_ids)
+    # print("Confluence Documents", conf_docs)
+    # collection.add(
+    #     documents=conf_docs,
+    #     ids=docs_ids,
+    # )
+    # print("Storing documents in vectordb")
+    # store_documents(confluence_documents)
+    # print("Stored all documents in vectordb\n")
+    # print("Confluence Documents", confluence_documents)
     
     
-    print("Retrieving Recent Updates")
-    retrieve_recent_updates(CONFLUENCE_SITE, AUTH)
-    print("Recent Updates Retrieved")
+    # print("Retrieving Recent Updates")
+    # retrieve_recent_updates(CONFLUENCE_SITE, AUTH)
+    # print("Recent Updates Retrieved")
     
     
     
@@ -273,14 +314,24 @@ def ask_recent_updates():
     return {"confluence_data": confluence_data}
 
 def retrieve_answer_from_confluence_knowledge_base(query):
-    vectordb = Chroma(
-        persist_directory=PERSIST_DIRECTORY,
-        embedding_function=OpenAIEmbeddings()
+    collection = chroma_client.get_collection(
+        name="confluence_documents",        
+        embedding_function=HUGGINGFACE_EF,
+        )
+    
+    results = collection.query(
+        query_texts=[query],
+        n_results=3
     )
+    print("Results\n", results, "\n\n")
+    # vectordb = Chroma(
+    #     persist_directory=PERSIST_DIRECTORY,
+    #     embedding_function=OpenAIEmbeddings()
+    # )
     
-    top_k_answers = vectordb.similarity_search(query, k=3)
+    # top_k_answers = vectordb.similarity_search(query, k=3)
     
-    retrieved_answers = [top_k_answer.page_content for top_k_answer in top_k_answers]
+    # retrieved_answers = [top_k_answer.page_content for top_k_answer in top_k_answers]
     # response = client.chat.completions.create(
     #     model=GPT_MODEL,
     #     messages=[
@@ -295,8 +346,8 @@ def retrieve_answer_from_confluence_knowledge_base(query):
     #     ]        
     # )
     # retrieved_answer = response.choices[0].message.content
-    
-    return {"retrieved_answers": retrieved_answers}
+    retreived_answers = results["documents"]
+    return {"retrieved_answers": retreived_answers}
 
 @retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def chat_completion_request(messages, functions=None, model=GPT_MODEL):

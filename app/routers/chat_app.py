@@ -114,6 +114,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "assistantMessage": assistant_message_html,
                 "audioData": audio_data
                 }
-            await websocket.send_text(json.dumps(data_to_send))
+            # await websocket.send_text(json.dumps(data_to_send))
+            await websocket.send_json(data_to_send)
         except WebSocketDisconnect:
             break
