@@ -47,22 +47,12 @@ openai_key = os.environ["OPENAI_API_KEY"]
 ATLASSIAN_API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"]
 HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY"]
 
+# Declare HuggingFace embedding function
 HUGGINGFACE_EF = embedding_functions.HuggingFaceEmbeddingFunction(
     api_key=HUGGING_FACE_API_TOKEN,
     model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
-# chroma_client = chromadb.Client()
-# chroma_client = chromadb.PersistentClient(path="/app/chromadb")
-# chroma_client = chromadb.HttpClient(host='localhost', port=8000)
 
-
-def start_chromadb():
-    global chroma_client
-    chroma_client = chromadb.HttpClient(
-        host='localhost', 
-        port=8000,
-        )
-    return chroma_client
 
 client = OpenAI(
     api_key=openai_key
@@ -72,6 +62,14 @@ client = OpenAI(
 CONFLUENCE_SITE = "https://joteqwork.atlassian.net"
 API_TOKEN = ATLASSIAN_API_TOKEN
 AUTH = HTTPBasicAuth("joteqwork@gmail.com", API_TOKEN)
+
+
+def start_chromadb():
+    global chroma_client
+    chroma_client = chromadb.HttpClient(
+        host='localhost', 
+        port=10000,
+        )
     
 
 def text_to_speech(text):
