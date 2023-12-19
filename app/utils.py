@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 from langchain.vectorstores import Chroma
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter
 
 # from app.dependencies import CONFLUENCE_SITE, AUTH
 
@@ -15,25 +15,43 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def get_docs(documents):
+    doc_splitter = CharacterTextSplitter(
+        separator="",
+        chunk_size = 1000,
+        chunk_overlap = 0,
+    )
+    
+    docs = doc_splitter.split_documents(documents)
+    
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size = 1000,
-        chunk_overlap = 200,
+        chunk_overlap  = 200,
+        length_function = len,
+        is_separator_regex = False,
     )
     
-    docs = text_splitter.split_documents(documents)
-    docs_str = [str(doc) for doc in docs]
-    return docs_str
+    conf_docs = []
+    for doc in docs:
+        page_content = doc.page_content
+        texts = text_splitter.create_documents([page_content])
+        for text in texts:
+            conf_docs.append(text)
+        
+    # conf_docs = {}
+    # for doc in docs:
+    #     conf_docs
+    # docs_str = [str([doc]) for doc in docs]
+    return conf_docs
 
-PERSIST_DIRECTORY = "app/chroma_docs/chroma/"
-def store_documents(documents):
-    embeddings = OpenAIEmbeddings()
+# PERSIST_DIRECTORY = "app/chroma_docs/chroma/"
+# def store_documents(documents):
+#     embeddings = OpenAIEmbeddings()
     
-    Chroma.from_documents(
-        documents=documents,
-        embedding=embeddings,
-        persist_directory=PERSIST_DIRECTORY
-    )
-    
+#     Chroma.from_documents(
+#         documents=documents,
+#         embedding=embeddings,
+#         persist_directory=PERSIST_DIRECTORY
+#     )
  
  
 def get_spaces_details(spaces_results):    
@@ -145,7 +163,12 @@ def retrieve_versions(page_id, confluence_site, auth):
     
     return versions
 
-
+def check_date(page_versions):
+    date = page_versions['previous_version']['date']
+    if ('yesterday' in date) or ('today' in date) or ("hours" in date) or ("hour" in date) or \
+        ("minutes" in date) or ("minute" in date) or ("seconds" in date) or ("second" in date):
+            return True
+        
 def retrieve_recent_updates(confluence_site, auth): 
     spaces_results = read_from_json_file("spaces_in_confluence")[:-1]     
     spaces = {}
@@ -158,16 +181,16 @@ def retrieve_recent_updates(confluence_site, auth):
         for page in pages_results:
             page_id = page['id']
             page_versions = retrieve_versions(page_id, confluence_site, auth)
-            if page_versions:
+            if page_versions and check_date(page_versions):
                 pages[page['title']] = page_versions
         
-        if pages:   
-            spaces[space['space_name']] = {
-                'id': space['space_id'],
-                'key': space['space_key'],
-                'name': space['space_name'],     
-                'pages': pages,    
-                } 
+        if pages: 
+                spaces[space['space_name']] = {
+                    'id': space['space_id'],
+                    'key': space['space_key'],
+                    'name': space['space_name'],     
+                    'pages': pages,    
+                    } 
     print("Storing Confluence Documents in JSON Store")
     save_to_json_file(spaces, "confluence_recent_updates")
     print("Stored Confluence Documents in JSON Store")

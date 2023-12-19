@@ -5,17 +5,32 @@ from app.routers import chat_app
 from fastapi.testclient import TestClient
 from starlette.staticfiles import StaticFiles
 
-from app.dependencies import start_chromadb
+# from app.config import get_chromadb
+from functools import lru_cache
+# from app.dependencies import start_chromadb
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("Starting Chromadb")    
-    start_chromadb()
-    print("Chromadb started")
-    yield
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     print("Starting Chromadb")    
+#     start_chromadb()
+#     print("Chromadb started")
+#     yield
 
 
-app = FastAPI(lifespan=lifespan)
+# chroma_client = get_chromadb() 
+
+# @lru_cache
+# def get_chromadb():
+#     chroma_client = chromadb.HttpClient(
+#         host='localhost', 
+#         port=8000,
+#         )
+    
+#     return chroma_client
+
+# chroma_client = get_chromadb()
+
+app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

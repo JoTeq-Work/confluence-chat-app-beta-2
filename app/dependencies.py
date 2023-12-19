@@ -16,8 +16,9 @@ from requests.auth import HTTPBasicAuth
 from dotenv import load_dotenv, find_dotenv
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 
-import chromadb
-from chromadb.config import Settings
+# import chromadb
+# from chromadb.config import Settings
+from app.vectordb import aws_chroma_client
 
 from app.utils import (
     get_spaces_details, 
@@ -25,13 +26,10 @@ from app.utils import (
     read_from_json_file, 
     get_space_id,
     get_docs,
-    store_documents,
-    Chroma,
-    PERSIST_DIRECTORY,
-    OpenAIEmbeddings,
     retrieve_recent_updates
     )
 
+from app.config import get_chromadb
 from langchain.document_loaders import ConfluenceLoader
 
 # Configure logging
@@ -44,39 +42,44 @@ load_dotenv("app/.env")
 
 # Declare API keys
 openai_key = os.environ["OPENAI_API_KEY"]
-ATLASSIAN_API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"]
-HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY"]
+# ATLASSIAN_API_TOKEN = os.environ["ATLASSIAN_API_TOKEN"]
+TRACKMATRIX_ATLASSIAN_API_TOKEN = os.environ["TRACKMATRIX_ATLASSIAN_API_TOKEN"]
+# HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY"]
+HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY2"]
 
 # Declare HuggingFace embedding function
-HUGGINGFACE_EF = embedding_functions.HuggingFaceEmbeddingFunction(
-    api_key=HUGGING_FACE_API_TOKEN,
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+# HUGGINGFACE_EF = embedding_functions.HuggingFaceEmbeddingFunction(
+#     api_key=HUGGING_FACE_API_TOKEN,
+#     model_name="sentence-transformers/all-MiniLM-L6-v2"
+#     )
 
-
+# openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+#                 api_key=openai_key,
+#                 model_name="text-embedding-ada-002"
+#             )
+# default_ef = embedding_functions.DefaultEmbeddingFunction()
+sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
 client = OpenAI(
     api_key=openai_key
 )
 
+USERNAME = "josephnkumah97@gmail.com"
+
 # Confluence REST API Utilities
-CONFLUENCE_SITE = "https://joteqwork.atlassian.net"
-API_TOKEN = ATLASSIAN_API_TOKEN
-AUTH = HTTPBasicAuth("joteqwork@gmail.com", API_TOKEN)
+# CONFLUENCE_SITE = "https://joteqwork.atlassian.net"
+# API_TOKEN = ATLASSIAN_API_TOKEN
+# AUTH = HTTPBasicAuth(USERNAME, API_TOKEN)
 
-
-def start_chromadb():
-    global chroma_client
-    chroma_client = chromadb.HttpClient(
-        host='localhost', 
-        port=10000,
-        )
+# TrackMatrix Confluence REST API Utilities
+CONFLUENCE_SITE = "https://trackmatrix.atlassian.net"
+API_TOKEN = TRACKMATRIX_ATLASSIAN_API_TOKEN
+AUTH = HTTPBasicAuth(USERNAME, API_TOKEN)
     
 
 def text_to_speech(text):
     if not text:
         return
     speech_file_path = "app/static/chat_app/files/audio/assistant_message_output.mp3"
-    # Delete existing speech
     try:
         print("Deleting exisiting AI speech")
         os.remove(speech_file_path)
@@ -208,11 +211,11 @@ def call_create_page_api(space_name, title, content):
 
     return json.dumps(results)
 
-def update_confluence_vector_database():    
-    # start_time = time.perf_counter()
+def update_confluence_vector_database(): 
+    start_time = time.perf_counter()
     loader = ConfluenceLoader(
         url=CONFLUENCE_SITE,
-        username="joteqwork@gmail.com",
+        username=USERNAME,
         api_key=API_TOKEN
     )
     
@@ -221,88 +224,72 @@ def update_confluence_vector_database():
     print("Reading Confluence spaces")
     spaces = read_from_json_file("spaces_in_confluence")[:-1]
     
-    # print("Deleting existing vector db")
-    # shutil.rmtree("app/chroma_docs", ignore_errors=True)
-    # print("Deleted existing db, now creating new db")
-    # print("Chroma Client 1", chroma_client)
-    print("Resetting Chromadb")
-    chroma_client.reset()
-    print("Chromadb has been reset")
-    
-    # num_docs = 0
-    i = 1
-    # confluence_documents = {}
+    try: 
+        logger.info("Collection does not exist")
+        print("Creating new `confluence_documents` collection")
+        collection  = aws_chroma_client.create_collection(
+            name="confluence_documents",
+            embedding_function=sentence_transformer_ef,
+            )
+        print("New collection created")
+    except Exception as e:
+        logger.warning(e)
+        logger.info("Collection already exists. Deleting existing `confluence_documents` collection")
+        aws_chroma_client.delete_collection(name="confluence_documents") 
+        print("Creating new `confluence_documents` collection")
+        collection  = aws_chroma_client.create_collection(
+            name="confluence_documents",
+            embedding_function=sentence_transformer_ef,
+            )
+        print("New collection created")       
+        
     conf_docs = []
-    collection  = chroma_client.create_collection(
-        name="confluence_documents",
-        embedding_function=HUGGINGFACE_EF,
-        )
     for space in spaces:
-        # print("Loading spaces from space", i)
         space_docs = loader.load(
         space_key=space['space_key'],
-        # include_attachments=True, # PDF, PNG, JPEG/JPG, SVG, Word, Excel
         limit=50,
-        # max_pages=2
         )
-        # print("Space Documents:", space_docs, "\n")
         
-        # confluence_documents[space['space_id']] = {
-        #     'space_key': space['space_key'],
-        #     'space_name': space['space_name'],
-        #     'space_documents':  str(space_docs) # 
-        # }
-        # print("Space Documents:", confluence_documents, "\n")
-        
-        print("Getting docs")
+        logger.info("Getting docs")
         docs = get_docs(space_docs)
-        # print("Creating Documents List")
-        # conf_docs.append(str(docs))
+        print("Split docs:", docs)
+        print("Number of docs:", len(docs))
+        print("Adding to confluence documents\n")
+        # conf_docs.append(docs)
+        for i, doc in enumerate(docs):  
+            single_document = str(doc)
+            print(f"Single Document {i+1}: {single_document}")         
         
-        docs_ids = [str(uuid.uuid4()) for _ in range(len(docs))]
-        print("Documents IDs:", docs_ids)
-        collection.add(
-            documents=docs,
-            ids=docs_ids
-        )
-        # print(*docs)
-        # print(len(docs), "\n\n")
-        
-        
-        # print("Number of docs for", space['space_key'], ":", len(docs))
-        # num_docs += len(docs)
-        # print("Docs:", docs)
-        
-        # print("Storing documents in vectordb")
-        # store_documents(docs)
-        # print("Stored documents of space", i)
-        # i+=1
-        
-    print("Chromadb Ready!")
+            # docs_ids = [str(uuid.uuid4()) for _ in range(len(docs))]
+            # print("Documents IDs:", docs_ids)
+            print("Adding Collection", i+1)
+            collection.add(
+                documents=[single_document],
+                ids=[str(uuid.uuid4())] 
+            )
+            print(f"Collection {i+1} added\n")
     
-    # docs_ids = [str(uuid.uuid4()) for _ in range(len(conf_docs))]
-    # print("Documents IDs:", docs_ids)
-    # print("Confluence Documents", conf_docs)
-    # collection.add(
-    #     documents=conf_docs,
-    #     ids=docs_ids,
-    # )
-    # print("Storing documents in vectordb")
-    # store_documents(confluence_documents)
-    # print("Stored all documents in vectordb\n")
-    # print("Confluence Documents", confluence_documents)
+    # print("Confluence Documents:", conf_docs)
+    # print("Number of documents", len(conf_docs))
+    # print("All documents are in conf_docs list. Proceeding to add documents to db")
+    # for i, docs in enumerate(conf_docs):
+    #     space_documents= [str(docs)]
+    #     print("Single Document:", space_documents, "\n")
+    #     collection.add(
+    #         documents=space_documents,
+    #         ids=[str(uuid.uuid4())]
+    #     )
+    #     print("Document", i, "added")
+    logger.info("Chromadb Ready!\n")
+    print("Collection count:", collection.count(), "\n")
+    logger.info("Retrieving Recent Updates")
+    retrieve_recent_updates(CONFLUENCE_SITE, AUTH)
+    logger.info("Recent Updates Retrieved\n")
     
+    end_time = time.perf_counter()
     
-    # print("Retrieving Recent Updates")
-    # retrieve_recent_updates(CONFLUENCE_SITE, AUTH)
-    # print("Recent Updates Retrieved")
-    
-    
-    
-    # end_time = time.perf_counter()
-    
-    # elasped_time = end_time - start_time
-    # print("Elasped_time to update the knowledge base:", elasped_time)
+    elasped_time = end_time - start_time
+    print("Elasped_time to update the knowledge base:", elasped_time)
     
    
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -312,9 +299,9 @@ def ask_recent_updates():
     return {"confluence_data": confluence_data}
 
 def retrieve_answer_from_confluence_knowledge_base(query):
-    collection = chroma_client.get_collection(
+    collection = aws_chroma_client.get_collection(
         name="confluence_documents",        
-        embedding_function=HUGGINGFACE_EF,
+        embedding_function=sentence_transformer_ef,
         )
     
     results = collection.query(
