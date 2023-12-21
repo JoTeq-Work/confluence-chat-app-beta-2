@@ -46,7 +46,7 @@ openai_key = os.environ["OPENAI_API_KEY"]
 TRACKMATRIX_ATLASSIAN_API_TOKEN = os.environ["TRACKMATRIX_ATLASSIAN_API_TOKEN"]
 # HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY"]
 HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY2"]
-
+print(openai_key)
 # Declare HuggingFace embedding function
 # HUGGINGFACE_EF = embedding_functions.HuggingFaceEmbeddingFunction(
 #     api_key=HUGGING_FACE_API_TOKEN,
@@ -58,7 +58,7 @@ HUGGING_FACE_API_TOKEN = os.environ["HUGGING_FACE_API_KEY2"]
 #                 model_name="text-embedding-ada-002"
 #             )
 # default_ef = embedding_functions.DefaultEmbeddingFunction()
-sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+
 client = OpenAI(
     api_key=openai_key
 )
@@ -212,6 +212,7 @@ def call_create_page_api(space_name, title, content):
     return json.dumps(results)
 
 def update_confluence_vector_database(): 
+    sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     start_time = time.perf_counter()
     loader = ConfluenceLoader(
         url=CONFLUENCE_SITE,
@@ -243,7 +244,6 @@ def update_confluence_vector_database():
             )
         print("New collection created")       
         
-    conf_docs = []
     for space in spaces:
         space_docs = loader.load(
         space_key=space['space_key'],
@@ -282,6 +282,7 @@ def update_confluence_vector_database():
     #     print("Document", i, "added")
     logger.info("Chromadb Ready!\n")
     print("Collection count:", collection.count(), "\n")
+    
     logger.info("Retrieving Recent Updates")
     retrieve_recent_updates(CONFLUENCE_SITE, AUTH)
     logger.info("Recent Updates Retrieved\n")
@@ -294,11 +295,12 @@ def update_confluence_vector_database():
    
 #----------------------------------------------------------------------------------------------------------------------------------
 
-def ask_recent_updates():
+def ask_recent_updates():    
     confluence_data = read_from_json_file("confluence_recent_updates")
     return {"confluence_data": confluence_data}
 
 def retrieve_answer_from_confluence_knowledge_base(query):
+    sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     collection = aws_chroma_client.get_collection(
         name="confluence_documents",        
         embedding_function=sentence_transformer_ef,

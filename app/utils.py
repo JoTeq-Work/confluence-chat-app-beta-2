@@ -167,7 +167,8 @@ def check_date(page_versions):
     date = page_versions['previous_version']['date']
     if ('yesterday' in date) or ('today' in date) or ("hours" in date) or ("hour" in date) or \
         ("minutes" in date) or ("minute" in date) or ("seconds" in date) or ("second" in date):
-            return True
+        return True
+           
         
 def retrieve_recent_updates(confluence_site, auth): 
     spaces_results = read_from_json_file("spaces_in_confluence")[:-1]     
@@ -191,6 +192,10 @@ def retrieve_recent_updates(confluence_site, auth):
                     'name': space['space_name'],     
                     'pages': pages,    
                     } 
+        
+        if not spaces:
+            spaces['spaces'] = "No recent updates"
+            
     print("Storing Confluence Documents in JSON Store")
     save_to_json_file(spaces, "confluence_recent_updates")
     print("Stored Confluence Documents in JSON Store")
